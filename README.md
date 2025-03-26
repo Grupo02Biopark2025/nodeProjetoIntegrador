@@ -28,7 +28,7 @@ node-postgres-app
 ## Instalação
 1. Clone o repositório:
    ```
-   git clone <URL_DO_REPOSITORIO>
+   git clone https://github.com/Grupo02Biopark2025/nodeProjetoIntegrador.git
    ```
 2. Navegue até o diretório do projeto:
    ```
