@@ -15,10 +15,12 @@
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
     "nodeprojetointegrador": "file:",
-    "pg": "^8.7.1",
-    "prisma": "^6.5.0"
+    "pg": "^8.7.1"
   },
   "author": "",
   "license": "ISC",
-  "description": "Micro serviço construido em Node.Js para o projeto integrador."
+  "description": "Micro serviço construido em Node.Js para o projeto integrador.",
+  "devDependencies": {
+    "prisma": "^6.6.0"
+  }
 }
