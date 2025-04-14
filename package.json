@@ -15,7 +15,9 @@
     "helmet": "^4.6.0",
     "jsonwebtoken": "^9.0.2",
     "nodeprojetointegrador": "file:",
-    "pg": "^8.7.1"
+    "pg": "^8.7.1",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1"
   },
   "author": "",
   "license": "ISC",

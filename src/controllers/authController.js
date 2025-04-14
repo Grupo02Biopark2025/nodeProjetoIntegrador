@@ -4,8 +4,65 @@ import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.SECRET_KEY;
+/**
+ * @swagger
+ * tags:
+ *   name: Auth
+ *   description: Rotas de autenticação
 
-export async function login(req, res){
+ * /api/auth/login:
+ *   post:
+ *     summary: Autenticar usuário e retornar token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 example: gusta@mdm.com
+ *               password:
+ *                 type: string
+ *                 example: 123456
+ *     responses:
+ *       200:
+ *         description: Login bem-sucedido
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: Login bem-sucedido!
+ *                 token:
+ *                   type: string
+ *                   example: JWT_TOKEN_AQUI
+ *                 user:
+ *                   type: object
+ *                   properties:
+ *                     id:
+ *                       type: integer
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *       401:
+ *         description: Email ou senha inválidos
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro no servidor
+ */
+
+
+export async function login(req, res) {
     try {
         const { email, password } = req.body;
 
@@ -18,14 +75,14 @@ export async function login(req, res){
         }
 
         const isValidPassword = await bcrypt.compare(password, user.password);
-        if(!isValidPassword){
+        if (!isValidPassword) {
             return res.status(401).json({ error: "Email ou senha inválidos" });
         }
 
         const token = jwt.sign({ id: user.id }, SECRET_KEY, {
             expiresIn: "1h",
         });
-        
+
         return res.status(200).json({ message: "Login bem-sucedido!", token, user });
     } catch (error) {
         console.log("Erro ao fazer login:", error);
