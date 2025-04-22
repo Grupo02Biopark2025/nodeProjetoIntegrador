@@ -1,9 +1,12 @@
 import { PrismaClient } from "@prisma/client";
+import { sendPasswordResetEmail } from "../services/emailService.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.SECRET_KEY;
+
 /**
  * @swagger
  * tags:
@@ -89,3 +92,34 @@ export async function login(req, res) {
         return res.status(500).json({ error: "Erro ao fazer login" });
     }
 }
+
+export async function requestPasswordReset(req, res) {
+    const { email } = req.body;
+  
+    // Verifica se o usuário existe
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
+  
+    // Gera token aleatório e define expiração (15 minutos)
+    const token = crypto.randomBytes(32).toString("hex");
+    const expires = new Date(Date.now() + 15 * 60 * 1000);
+  
+    // Salva o token no banco
+    await prisma.user.update({
+      where: { email },
+      data: {
+        resetToken: token,
+        resetTokenExpires: expires,
+      },
+    });
+  
+    // Envia o e-mail
+    try {
+      await sendPasswordResetEmail(email, token);
+      return res.status(200).json({ message: "E-mail enviado com sucesso!" });
+    } catch (error) {
+      return res.status(500).json({ error: "Erro ao enviar e-mail." });
+    }
+  }
