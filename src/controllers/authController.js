@@ -117,35 +117,39 @@ export async function requestPasswordReset(req, res) {
   return res.json({ message: "E-mail de redefinição enviado!" });
 }
 
-// Redefinir senha usando o token
 export async function resetPassword(req, res) {
-  const { token, password } = req.body;
+  const { email, password } = req.body;
 
-  const user = await prisma.user.findFirst({
-    where: {
-      resetToken: token,
-      resetTokenExpires: {
-        gte: new Date(),
-      },
-    },
-  });
-
-  if (!user) {
-    return res.status(400).json({ error: "Token inválido ou expirado." });
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email e nova senha são obrigatórios." });
   }
 
-  const hashedPassword = await bcrypt.hash(password, 10);
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      password: hashedPassword,
-      resetToken: null,
-      resetTokenExpires: null,
-    },
-  });
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado." });
+    }
 
-  return res.json({ message: "Senha redefinida com sucesso!" });
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.user.update({
+      where: { email },
+      data: {
+        password: hashedPassword,
+        resetCode: null,          // limpa o código
+        resetCodeExpires: null,   // limpa expiração também
+      },
+    });
+
+    return res.status(200).json({ message: "Senha redefinida com sucesso." });
+
+  } catch (error) {
+    console.error("Erro ao redefinir senha:", error);
+    return res.status(500).json({ error: "Erro interno ao redefinir senha." });
+  }
 }
 
 export async function verifyResetCode(req, res) {

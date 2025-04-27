@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requestPasswordReset, verifyResetCode } from "../controllers/authController.js";
+import { requestPasswordReset, verifyResetCode, resetPassword } from "../controllers/authController.js";
 
 import {
     login,
@@ -9,5 +9,6 @@ const router = Router();
 router.post('/login', login);
 router.post('/request-reset', requestPasswordReset);
 router.post('/verify-code', verifyResetCode);
+router.post('/reset-password', resetPassword);
 
 export default router;
