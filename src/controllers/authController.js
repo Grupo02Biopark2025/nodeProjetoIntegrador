@@ -101,18 +101,18 @@ export async function requestPasswordReset(req, res) {
     return res.status(404).json({ error: "Usuário não encontrado." });
   }
 
-  const token = crypto.randomBytes(32).toString("hex");
-  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+  const resetCode = Math.floor(100000 + Math.random() * 900000).toString(); // gera código 6 dígitos
+  const expires = new Date(Date.now() + 10 * 60 * 1000); // expira em 10 minutos
 
   await prisma.user.update({
     where: { email },
     data: {
-      resetToken: token,
-      resetTokenExpires: expires,
+      resetCode,
+      resetCodeExpires: expires,
     },
   });
 
-  await sendPasswordResetEmail(email, token);
+  await sendPasswordResetEmail(email, resetCode);
 
   return res.json({ message: "E-mail de redefinição enviado!" });
 }
@@ -146,4 +146,16 @@ export async function resetPassword(req, res) {
   });
 
   return res.json({ message: "Senha redefinida com sucesso!" });
+}
+
+export async function verifyResetCode(req, res) {
+  const { email, code } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || user.resetCode !== code || user.resetCodeExpires < new Date()) {
+    return res.status(400).json({ error: "Código inválido ou expirado." });
+  }
+
+  res.json({ message: "Código válido!" });
 }

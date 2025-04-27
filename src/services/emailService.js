@@ -1,23 +1,18 @@
 import sgMail from "@sendgrid/mail";
-
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-// Função para enviar o e-mail de redefinição de senha
-export async function sendPasswordResetEmail(to, token) {
-  const resetLink = `http://localhost:3000/reset-password?token=${token}`;
-
-  const email = {
+export async function sendPasswordResetEmail(to, resetCode) {
+  const msg = {
     to,
     from: process.env.EMAIL_FROM,
-    subject: "Redefinição de Senha - CorpSync",
+    subject: "Seu Código de Recuperação - CorpSync",
     html: `
-      <h2>Redefinição de Senha</h2>
-      <p>Olá,</p>
-      <p>Clique no botão abaixo para redefinir sua senha:</p>
-      <a href="${resetLink}" style="display:inline-block;padding:10px 20px;background-color:#259073;color:white;border-radius:5px;text-decoration:none;">Redefinir Senha</a>
-      <p>Este link é válido por 15 minutos.</p>
+      <h2>Recuperação de Senha</h2>
+      <p>Seu código de recuperação é:</p>
+      <h1 style="letter-spacing: 4px;">${resetCode}</h1>
+      <p>Este código expira em 10 minutos.</p>
     `,
   };
 
-  await sgMail.send(email);
+  await sgMail.send(msg);
 }

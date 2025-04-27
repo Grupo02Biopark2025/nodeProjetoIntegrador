@@ -15,4 +15,6 @@ model User {
   profileImage String? // O ? indica que é opcional
   resetToken         String?     
   resetTokenExpires  DateTime?   
+  resetCode       String?    
+  resetCodeExpires DateTime?
 }
