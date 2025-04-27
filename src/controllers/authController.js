@@ -66,60 +66,84 @@ const SECRET_KEY = process.env.SECRET_KEY;
 
 
 export async function login(req, res) {
-    try {
-        const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-        const user = await prisma.user.findUnique({
-            where: { email },
-        });
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-        if (!user) {
-            return res.status(404).json({ error: "Usuário não encontrado" });
-        }
-
-        const isValidPassword = await bcrypt.compare(password, user.password);
-        if (!isValidPassword) {
-            return res.status(401).json({ error: "Email ou senha inválidos" });
-        }
-
-        const token = jwt.sign({ id: user.id }, SECRET_KEY, {
-            expiresIn: "1h",
-        });
-
-        return res.status(200).json({ message: "Login bem-sucedido!", token, user });
-    } catch (error) {
-        console.log("Erro ao fazer login:", error);
-        return res.status(500).json({ error: "Erro ao fazer login" });
+    if (!user) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
     }
+
+    const isValidPassword = await bcrypt.compare(password, user.password);
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Email ou senha inválidos" });
+    }
+
+    const token = jwt.sign({ id: user.id }, SECRET_KEY, {
+      expiresIn: "1h",
+    });
+
+    return res.status(200).json({ message: "Login bem-sucedido!", token, user });
+  } catch (error) {
+    console.log("Erro ao fazer login:", error);
+    return res.status(500).json({ error: "Erro ao fazer login" });
+  }
 }
 
 export async function requestPasswordReset(req, res) {
-    const { email } = req.body;
-  
-    // Verifica se o usuário existe
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado." });
-    }
-  
-    // Gera token aleatório e define expiração (15 minutos)
-    const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 15 * 60 * 1000);
-  
-    // Salva o token no banco
-    await prisma.user.update({
-      where: { email },
-      data: {
-        resetToken: token,
-        resetTokenExpires: expires,
-      },
-    });
-  
-    // Envia o e-mail
-    try {
-      await sendPasswordResetEmail(email, token);
-      return res.status(200).json({ message: "E-mail enviado com sucesso!" });
-    } catch (error) {
-      return res.status(500).json({ error: "Erro ao enviar e-mail." });
-    }
+  const { email } = req.body;
+
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    return res.status(404).json({ error: "Usuário não encontrado." });
   }
+
+  const token = crypto.randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutos
+
+  await prisma.user.update({
+    where: { email },
+    data: {
+      resetToken: token,
+      resetTokenExpires: expires,
+    },
+  });
+
+  await sendPasswordResetEmail(email, token);
+
+  return res.json({ message: "E-mail de redefinição enviado!" });
+}
+
+// Redefinir senha usando o token
+export async function resetPassword(req, res) {
+  const { token, password } = req.body;
+
+  const user = await prisma.user.findFirst({
+    where: {
+      resetToken: token,
+      resetTokenExpires: {
+        gte: new Date(),
+      },
+    },
+  });
+
+  if (!user) {
+    return res.status(400).json({ error: "Token inválido ou expirado." });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      password: hashedPassword,
+      resetToken: null,
+      resetTokenExpires: null,
+    },
+  });
+
+  return res.json({ message: "Senha redefinida com sucesso!" });
+}
