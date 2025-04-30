@@ -59,3 +59,25 @@ export async function syncDevice(req, res) {
       return res.status(500).json({ error: 'Erro ao sincronizar dispositivo' });
     }
   }
+
+// Função para listar todos os dispositivos, sem os logs, somente os dispositivos
+export async function listDevices(req, res) {
+    try {
+      const devices = await prisma.device.findMany({
+        select: {
+          id: true,
+          deviceId: true,
+          model: true,
+          os: true,
+          osVersion: true,
+          totalDiskSpace: true,
+          freeDiskSpace: true,
+        },
+      });
+  
+      return res.status(200).json(devices);
+    } catch (error) {
+      console.error('Erro ao listar dispositivos:', error);
+      return res.status(500).json({ error: 'Erro ao listar dispositivos' });
+    }
+  }
