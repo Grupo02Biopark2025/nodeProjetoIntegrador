@@ -2,7 +2,6 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-// Função para salvar ou atualizar informações do dispositivo
 export async function syncDevice(req, res) {
     try {
       const {
@@ -68,28 +67,78 @@ export async function syncDevice(req, res) {
     }
   }
 
-// Função para listar todos os dispositivos, sem os logs, somente os dispositivos
 export async function listDevices(req, res) {
-    try {
-      const devices = await prisma.device.findMany({
-        select: {
-          id: true,
-          deviceId: true,
-          model: true,
-          os: true,
-          osVersion: true,
-          totalDiskSpace: true,
-          freeDiskSpace: true,
-        },
-      });
-  
-      return res.status(200).json(devices);
-    } catch (error) {
-      console.error('Erro ao listar dispositivos:', error);
-      return res.status(500).json({ error: 'Erro ao listar dispositivos' });
-    }
-  }
+  try {
+    const { page = 1, limit = 10, search } = req.query;
+    const skip = (page - 1) * limit;
+    const take = parseInt(limit);
 
+    const where = search
+      ? {
+          OR: [
+            { model: { contains: search, mode: 'insensitive' } },
+            { os: { contains: search, mode: 'insensitive' } },
+          ],
+        }
+      : {};
+
+    const devices = await prisma.device.findMany({
+      skip,
+      take,
+      where,
+      select: {
+        id: true,
+        deviceId: true,
+        model: true,
+        os: true,
+        osVersion: true,
+        totalDiskSpace: true,
+        freeDiskSpace: true,
+      },
+    });
+
+    const totalDevices = await prisma.device.count({ where });
+    const totalPages = Math.ceil(totalDevices / limit);
+
+    return res.status(200).json({
+      devices,
+      currentPage: parseInt(page),
+      totalPages,
+      totalDevices,
+    });
+  } catch (error) {
+    console.error('Erro ao listar dispositivos:', error);
+    return res.status(500).json({ error: 'Erro ao listar dispositivos' });
+  }
+}
+
+export async function getDeviceById(req, res) {
+  try {
+    const { id } = req.params;
+
+    const device = await prisma.device.findUnique({
+      where: { id: parseInt(id) },
+      select: {
+        id: true,
+        deviceId: true,
+        model: true,
+        os: true,
+        osVersion: true,
+        totalDiskSpace: true,
+        freeDiskSpace: true,
+      },
+    });
+
+    if (!device) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+
+    return res.status(200).json(device);
+  } catch (error) {
+    console.error('Erro ao buscar dispositivo por ID:', error);
+    return res.status(500).json({ error: 'Erro ao buscar dispositivo' });
+  }
+}
 
 // Função para listar os logs de um dispositivo específico
 export async function listDeviceLogs(req, res) {
