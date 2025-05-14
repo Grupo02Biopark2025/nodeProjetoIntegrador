@@ -17,6 +17,8 @@ export async function syncDevice(req, res) {
         total_disk_space: totalDiskSpace,
         device_id: deviceId,
         sync_count: syncCount,
+        latitude,
+        longitude,
       } = req.body;
   
       // Atualiza ou cria o dispositivo
@@ -28,6 +30,8 @@ export async function syncDevice(req, res) {
           osVersion,
           totalDiskSpace,
           freeDiskSpace,
+          latitude: latitude || null,
+          longitude: longitude || null,
         },
         create: {
           deviceId,
@@ -36,6 +40,8 @@ export async function syncDevice(req, res) {
           osVersion,
           totalDiskSpace,
           freeDiskSpace,
+          latitude: latitude || null,
+          longitude: longitude || null,
         },
       });
   
@@ -47,6 +53,8 @@ export async function syncDevice(req, res) {
           batteryState,
           syncCount,
           timestamp: timestamp ? new Date(timestamp) : new Date(),
+          latitude: latitude || null,
+          longitude: longitude || null,
           device: {
             connect: { id: device.id },
           },
@@ -79,5 +87,23 @@ export async function listDevices(req, res) {
     } catch (error) {
       console.error('Erro ao listar dispositivos:', error);
       return res.status(500).json({ error: 'Erro ao listar dispositivos' });
+    }
+  }
+
+
+// Função para listar os logs de um dispositivo específico
+export async function listDeviceLogs(req, res) {
+    const { deviceId } = req.params;
+  
+    try {
+      const logs = await prisma.log.findMany({
+        where: { deviceId },
+        orderBy: { timestamp: 'desc' },
+      });
+  
+      return res.status(200).json(logs);
+    } catch (error) {
+      console.error('Erro ao listar logs do dispositivo:', error);
+      return res.status(500).json({ error: 'Erro ao listar logs do dispositivo' });
     }
   }
