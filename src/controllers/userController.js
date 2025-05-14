@@ -2,6 +2,41 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 import bcrypt from "bcryptjs";
 
+/**
+ * @swagger
+ * /api/users:
+ *   post:
+ *     summary: Cria um novo usuário
+ *     tags: [Users]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - password
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Gustavo Domingos
+ *               email:
+ *                 type: string
+ *                 example: gusta@mdm.com
+ *               password:
+ *                 type: string
+ *                 example: 123456
+ *     responses:
+ *       201:
+ *         description: Usuário criado com sucesso
+ *       400:
+ *         description: Email já cadastrado
+ *       500:
+ *         description: Erro ao criar usuário
+ */
+
 // Criar um novo usuário
 export async function createUser(req, res) {
   try {
@@ -31,6 +66,19 @@ export async function createUser(req, res) {
   }
 }
 
+/**
+ * @swagger
+ * /api/users:
+ *   get:
+ *     summary: Retorna todos os usuários
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Lista de usuários retornada com sucesso
+ *       500:
+ *         description: Erro ao obter usuários
+ */
+
 // Obter todos os usuários
 export async function getUsers(req, res) {
   try {
@@ -40,6 +88,28 @@ export async function getUsers(req, res) {
     return res.status(500).json({ error: 'Erro ao obter usuários' });
   }
 }
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   get:
+ *     summary: Retorna um usuário pelo ID
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *     responses:
+ *       200:
+ *         description: Usuário encontrado
+ *       404:
+ *         description: Usuário não encontrado
+ *       500:
+ *         description: Erro ao obter usuário
+ */
 
 // Obter um único usuário pelo ID
 export async function getUserById(req, res) {
@@ -56,6 +126,42 @@ export async function getUserById(req, res) {
     return res.status(500).json({ error: 'Erro ao obter usuário' });
   }
 }
+
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   put:
+ *     summary: Atualiza um usuário existente
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: Gustavo Atualizado
+ *               email:
+ *                 type: string
+ *                 example: novo@email.com
+ *               password:
+ *                 type: string
+ *                 example: novaSenha123
+ *     responses:
+ *       200:
+ *         description: Usuário atualizado
+ *       500:
+ *         description: Erro ao atualizar usuário
+ */
 
 // Atualizar um usuário
 export async function updateUser(req, res) {
@@ -80,6 +186,25 @@ export async function updateUser(req, res) {
   }
 }
 
+/**
+ * @swagger
+ * /api/users/{id}:
+ *   delete:
+ *     summary: Deleta um usuário pelo ID
+ *     tags: [Users]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID do usuário
+ *     responses:
+ *       200:
+ *         description: Usuário deletado com sucesso
+ *       500:
+ *         description: Erro ao deletar usuário
+ */
 
 // Deletar um usuário
 export async function deleteUser(req, res) {
