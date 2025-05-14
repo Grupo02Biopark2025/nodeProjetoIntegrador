@@ -28,6 +28,8 @@ model Device {
   osVersion   String
   totalDiskSpace String
   freeDiskSpace String
+  latitude      Float?  
+  longitude     Float?  
   logs        Log[]
 }
 
@@ -38,6 +40,8 @@ model Log {
   batteryState  String
   syncCount     Int
   timestamp     DateTime @default(now())
+  latitude     Float? 
+  longitude    Float? 
   deviceId      String
   device        Device   @relation(fields: [deviceId], references: [deviceId])
 }
