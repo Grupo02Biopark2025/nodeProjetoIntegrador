@@ -21,27 +21,90 @@ model User {
 
 
 model Device {
-  id          Int     @id @default(autoincrement())
-  deviceId    String  @unique
-  model       String
-  os          String
-  osVersion   String
-  totalDiskSpace String
-  freeDiskSpace String
-  latitude      Float?  
-  longitude     Float?  
-  logs        Log[]
+  id              Int       @id @default(autoincrement())
+  deviceId        String    @unique
+  model           String
+  manufacturer    String? 
+  brand           String? 
+  os              String
+  osVersion       String
+  sdkVersion      String?
+  
+  // Armazenamento
+  totalDiskSpace  String
+  freeDiskSpace   String
+  diskUsedPercentage Float?  // Porcentagem de uso do disco
+  
+  // Localização atual
+  latitude        Float?
+  longitude       Float?
+  
+  // Informações de hardware
+  isPhysicalDevice Boolean? // Se é um dispositivo físico ou emulador
+  
+  // Informações de bateria mais recentes
+  lastBatteryLevel Int?
+  lastBatteryState String?
+  batteryDrainRate Float?   // Taxa de consumo em % por hora
+  
+  // Informações de conectividade mais recentes
+  connectionType  String?   // wifi, mobile, none
+  wifiName        String?   // Nome da rede Wi-Fi, se conectado
+  
+  // Dados de aplicativos
+  totalAppsCount  Int?      // Total de aplicativos instalados
+  systemAppsCount Int?      // Aplicativos do sistema
+  userAppsCount   Int?      // Aplicativos do usuário
+  
+  // Dados de segurança
+  isDeviceRooted  Boolean?  // Se o dispositivo tem root (Android) ou jailbreak (iOS)
+  
+  // Tempo de tela
+  screenTimeMinutes Int?    // Tempo de tela nas últimas 24h (minutos)
+  
+  // Timestamps importantes
+  firstSync       DateTime?
+  lastSync        DateTime  @default(now())
+  
+  // Status do dispositivo
+  isOnline        Boolean   @default(false)
+  lastPing        DateTime?
+  
+  // Relação com logs
+  logs            Log[]
 }
 
 model Log {
-  id            Int      @id @default(autoincrement())
-  message       String
-  batteryLevel  Int
-  batteryState  String
-  syncCount     Int
-  timestamp     DateTime @default(now())
-  latitude     Float? 
-  longitude    Float? 
-  deviceId      String
-  device        Device   @relation(fields: [deviceId], references: [deviceId])
+  id               Int       @id @default(autoincrement())
+  message          String
+  
+  // Dados básicos
+  syncCount        Int
+  timestamp        DateTime  @default(now())
+  
+  // Bateria
+  batteryLevel     Int
+  batteryState     String
+  
+  // Localização
+  latitude         Float?
+  longitude        Float?
+  altitude         Float?    // Altitude em metros
+  locationAccuracy Float?    // Precisão da localização em metros
+  speed            Float?    // Velocidade em m/s
+  
+  // Armazenamento
+  freeDiskSpace    String?
+  totalDiskSpace   String?
+  diskUsedPercentage Float?
+  
+  // Rede
+  connectionType   String?   // wifi, mobile, none
+  wifiName         String?   // Nome da rede Wi-Fi (se conectado)
+  wifiSignalStrength Int?    // Força do sinal Wi-Fi
+  mobileDataType   String?   // 4G, 5G, etc.
+  
+  // Relações
+  deviceId         String
+  device           Device    @relation(fields: [deviceId], references: [deviceId])
 }

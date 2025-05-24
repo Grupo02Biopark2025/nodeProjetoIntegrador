@@ -7,18 +7,41 @@ export async function syncDevice(req, res) {
       const {
         message,
         timestamp,
+        model,
         os,
         os_version: osVersion,
-        model,
-        battery_level: batteryLevel,
-        battery_state: batteryState,
+        sdk_version: sdkVersion,
+        manufacturer,
+        brand,
+        is_physical_device: isPhysicalDevice,
         free_disk_space: freeDiskSpace,
         total_disk_space: totalDiskSpace,
-        device_id: deviceId,
-        sync_count: syncCount,
+        disk_used_percentage: diskUsedPercentage,
+        battery_level: batteryLevel,
+        battery_state: batteryState,
+        battery_drain_rate: batteryDrainRate,
         latitude,
         longitude,
+        altitude,
+        location_accuracy: locationAccuracy,
+        speed,
+        connection_type: connectionType,
+        is_online: isOnline,
+        wifi_name: wifiName,
+        wifi_signal_strength: wifiSignalStrength,
+        mobile_data_type: mobileDataType,
+        total_apps_count: totalAppsCount,
+        system_apps_count: systemAppsCount,
+        user_apps_count: userAppsCount,
+        is_device_rooted: isDeviceRooted,
+        screen_time_minutes: screenTimeMinutes,
+        device_id: deviceId,
+        sync_count: syncCount,
+        first_sync: firstSyncStr,
       } = req.body;
+      
+      const firstSync = firstSyncStr ? new Date(firstSyncStr) : null;
+      const timestampDate = timestamp ? new Date(timestamp) : new Date();
   
       // Atualiza ou cria o dispositivo
       const device = await prisma.device.upsert({
@@ -27,45 +50,125 @@ export async function syncDevice(req, res) {
           model,
           os,
           osVersion,
+          sdkVersion,
+          manufacturer,
+          brand,
+          isPhysicalDevice: isPhysicalDevice === true,
           totalDiskSpace,
           freeDiskSpace,
-          latitude: latitude || null,
-          longitude: longitude || null,
+          diskUsedPercentage: parseFloatOrNull(diskUsedPercentage),
+          latitude: parseFloatOrNull(latitude),
+          longitude: parseFloatOrNull(longitude),
+          lastBatteryLevel: parseInt(batteryLevel) || null,
+          lastBatteryState: batteryState || null,
+          batteryDrainRate: parseFloatOrNull(batteryDrainRate),
+          connectionType,
+          isOnline: isOnline === true,
+          wifiName,
+          totalAppsCount: parseInt(totalAppsCount) || null,
+          systemAppsCount: parseInt(systemAppsCount) || null,
+          userAppsCount: parseInt(userAppsCount) || null,
+          isDeviceRooted: isDeviceRooted === true,
+          screenTimeMinutes: parseInt(screenTimeMinutes) || null,
+          firstSync,
+          lastSync: new Date(),
         },
         create: {
+          // Informações básicas e obrigatórias
           deviceId,
           model,
           os,
           osVersion,
           totalDiskSpace,
           freeDiskSpace,
-          latitude: latitude || null,
-          longitude: longitude || null,
+          
+          // Campos opcionais
+          sdkVersion: sdkVersion || null,
+          manufacturer: manufacturer || null,
+          brand: brand || null,
+          isPhysicalDevice: isPhysicalDevice === true,
+          
+          // Armazenamento
+          diskUsedPercentage: parseFloatOrNull(diskUsedPercentage),
+          
+          // Localização
+          latitude: parseFloatOrNull(latitude),
+          longitude: parseFloatOrNull(longitude),
+          
+          // Bateria
+          lastBatteryLevel: parseInt(batteryLevel) || null,
+          lastBatteryState: batteryState || null,
+          batteryDrainRate: parseFloatOrNull(batteryDrainRate),
+          
+          // Conectividade
+          connectionType: connectionType || null,
+          isOnline: isOnline === true,
+          wifiName: wifiName || null,
+          
+          // Aplicativos
+          totalAppsCount: parseInt(totalAppsCount) || null,
+          systemAppsCount: parseInt(systemAppsCount) || null,
+          userAppsCount: parseInt(userAppsCount) || null,
+          
+          // Segurança
+          isDeviceRooted: isDeviceRooted === true,
+          
+          // Tempo de tela
+          screenTimeMinutes: parseInt(screenTimeMinutes) || null,
+          
+          // Timestamps
+          firstSync,
+          lastSync: new Date(),
         },
       });
   
- 
       const log = await prisma.log.create({
         data: {
-          message,
-          batteryLevel,
-          batteryState,
+          message: message || `Device sync at ${timestampDate.toISOString()}`,
+          
+          // Sincronização
           syncCount,
-          timestamp: timestamp ? new Date(timestamp) : new Date(),
-          latitude: latitude || null,
-          longitude: longitude || null,
+          timestamp: timestampDate,
+          
+          // Bateria
+          batteryLevel: parseInt(batteryLevel) || 0,
+          batteryState: batteryState || '',
+          
+          // Localização
+          latitude: parseFloatOrNull(latitude),
+          longitude: parseFloatOrNull(longitude),
+          altitude: parseFloatOrNull(altitude),
+          locationAccuracy: parseFloatOrNull(locationAccuracy),
+          speed: parseFloatOrNull(speed),
+          
+          // Armazenamento
+          freeDiskSpace,
+          totalDiskSpace,
+          diskUsedPercentage: parseFloatOrNull(diskUsedPercentage),
+          
+          // Conectividade
+          connectionType,
+          wifiName,
+          wifiSignalStrength: parseInt(wifiSignalStrength) || null,
+          mobileDataType,
+          
+          // Relação com o dispositivo
           device: {
             connect: { id: device.id },
           },
         },
       });
   
-      return res.status(200).json({ message: 'Dispositivo sincronizado com sucesso!', device, log });
+      return res.status(200).json({ 
+        message: 'Dispositivo sincronizado com sucesso!', 
+        device, 
+        log 
+      });
     } catch (error) {
       console.error('Erro ao sincronizar dispositivo:', error);
-      return res.status(500).json({ error: 'Erro ao sincronizar dispositivo' });
+      return res.status(500).json({ error: 'Erro ao sincronizar dispositivo', details: error.message });
     }
-  }
+}
 
 export async function listDevices(req, res) {
   try {
@@ -78,6 +181,8 @@ export async function listDevices(req, res) {
           OR: [
             { model: { contains: search, mode: 'insensitive' } },
             { os: { contains: search, mode: 'insensitive' } },
+            { manufacturer: { contains: search, mode: 'insensitive' } },
+            { brand: { contains: search, mode: 'insensitive' } },
           ],
         }
       : {};
@@ -90,10 +195,21 @@ export async function listDevices(req, res) {
         id: true,
         deviceId: true,
         model: true,
+        manufacturer: true,
+        brand: true,
         os: true,
         osVersion: true,
         totalDiskSpace: true,
         freeDiskSpace: true,
+        isOnline: true,
+        lastSync: true,
+        lastBatteryLevel: true,
+        isDeviceRooted: true,
+        latitude: true,
+        longitude: true,
+      },
+      orderBy: {
+        lastSync: 'desc',
       },
     });
 
@@ -118,14 +234,13 @@ export async function getDeviceById(req, res) {
 
     const device = await prisma.device.findUnique({
       where: { id: parseInt(id) },
-      select: {
-        id: true,
-        deviceId: true,
-        model: true,
-        os: true,
-        osVersion: true,
-        totalDiskSpace: true,
-        freeDiskSpace: true,
+      include: {
+        logs: {
+          take: 1, 
+          orderBy: {
+            timestamp: 'desc',
+          },
+        },
       },
     });
 
@@ -133,7 +248,13 @@ export async function getDeviceById(req, res) {
       return res.status(404).json({ error: 'Dispositivo não encontrado' });
     }
 
-    return res.status(200).json(device);
+    const enhancedDevice = {
+      ...device,
+      isRecentlySynced: device.lastSync && 
+        (new Date().getTime() - device.lastSync.getTime() < 24 * 60 * 60 * 1000),
+    };
+
+    return res.status(200).json(enhancedDevice);
   } catch (error) {
     console.error('Erro ao buscar dispositivo por ID:', error);
     return res.status(500).json({ error: 'Erro ao buscar dispositivo' });
@@ -142,17 +263,98 @@ export async function getDeviceById(req, res) {
 
 // Função para listar os logs de um dispositivo específico
 export async function listDeviceLogs(req, res) {
-    const { deviceId } = req.params;
+  const { deviceId } = req.params;
+  const { limit = 50, page = 1 } = req.query;
   
-    try {
-      const logs = await prisma.log.findMany({
-        where: { deviceId },
-        orderBy: { timestamp: 'desc' },
-      });
-  
-      return res.status(200).json(logs);
-    } catch (error) {
-      console.error('Erro ao listar logs do dispositivo:', error);
-      return res.status(500).json({ error: 'Erro ao listar logs do dispositivo' });
-    }
+  try {
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const take = parseInt(limit);
+    
+    const logs = await prisma.log.findMany({
+      where: { deviceId },
+      orderBy: { timestamp: 'desc' },
+      skip,
+      take,
+    });
+
+    const totalLogs = await prisma.log.count({
+      where: { deviceId }
+    });
+    
+    const totalPages = Math.ceil(totalLogs / take);
+
+    return res.status(200).json({
+      logs,
+      pagination: {
+        currentPage: parseInt(page),
+        totalPages,
+        totalLogs,
+        limit: take
+      }
+    });
+  } catch (error) {
+    console.error('Erro ao listar logs do dispositivo:', error);
+    return res.status(500).json({ error: 'Erro ao listar logs do dispositivo' });
   }
+}
+
+export async function getDeviceDetails(req, res) {
+  try {
+    const { deviceId } = req.params;
+    
+    const device = await prisma.device.findUnique({
+      where: { deviceId },
+    });
+    
+    if (!device) {
+      return res.status(404).json({ error: 'Dispositivo não encontrado' });
+    }
+    
+    const lastLog = await prisma.log.findFirst({
+      where: { deviceId },
+      orderBy: { timestamp: 'desc' },
+    });
+    
+    const batteryStats = await prisma.log.findMany({
+      where: { deviceId },
+      orderBy: { timestamp: 'desc' },
+      take: 7,
+      select: {
+        timestamp: true,
+        batteryLevel: true,
+        batteryState: true,
+      },
+    });
+    
+    const usageStats = {
+      totalSyncs: await prisma.log.count({ where: { deviceId } }),
+      
+      uptime: device.firstSync 
+        ? Math.floor((new Date().getTime() - device.firstSync.getTime()) / (24 * 60 * 60 * 1000)) 
+        : 0,
+      
+      syncsPerDay: device.firstSync && device.firstSync.getTime() < new Date().getTime()
+        ? (await prisma.log.count({ where: { deviceId } })) / 
+          (Math.floor((new Date().getTime() - device.firstSync.getTime()) / (24 * 60 * 60 * 1000)) || 1)
+        : 0,
+    };
+    
+    const deviceDetails = {
+      ...device,
+      lastLog,
+      batteryHistory: batteryStats,
+      usageStats,
+    };
+    
+    return res.status(200).json(deviceDetails);
+  } catch (error) {
+    console.error('Erro ao obter detalhes do dispositivo:', error);
+    return res.status(500).json({ error: 'Erro ao obter detalhes do dispositivo' });
+  }
+}
+
+function parseFloatOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = parseFloat(value);
+  return isNaN(parsed) ? null : parsed;
+}
