@@ -12,11 +12,17 @@ model User {
   name        String
   email       String  @unique
   password    String
+  isAdmin            Boolean   @default(false)
+  profileImage       String? 
   resetToken         String?     
   resetTokenExpires  DateTime?   
   resetCode       String?    
   resetCodeExpires DateTime?
-  profileImage String? 
+  ultimoLogin        DateTime?
+  ultimaAtualizacao  DateTime  @default(now()) @updatedAt
+  qtdLogins          Int       @default(0)
+  qtdClicks          Int       @default(0)
+  createdAt          DateTime  @default(now())
 }
 
 

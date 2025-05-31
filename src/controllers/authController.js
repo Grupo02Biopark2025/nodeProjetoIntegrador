@@ -86,6 +86,16 @@ export async function login(req, res) {
       expiresIn: "1h",
     });
 
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        contagemLogin: user.contagemLogin + 1,
+        ultimoLogin: new Date(),
+      },
+    });
+
+
     return res.status(200).json({ message: "Login bem-sucedido!", token, user });
   } catch (error) {
     console.log("Erro ao fazer login:", error);
