@@ -9,5 +9,4 @@ router.get('/:id', getDeviceById);
 router.get('/:deviceId/logs', listDeviceLogs);
 router.get('/:deviceId/details', getDeviceDetails);
 
-
 export default router;
