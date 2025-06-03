@@ -358,3 +358,56 @@ function parseFloatOrNull(value) {
   const parsed = parseFloat(value);
   return isNaN(parsed) ? null : parsed;
 }
+
+// 1. Dispositivos por Marca (Brand)
+export async function devicesByBrand(req, res) {
+  try {
+    const result = await prisma.device.groupBy({
+      by: ['brand'],
+      _count: { brand: true }
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro ao agrupar por marca:', error);
+    res.status(500).json({ error: 'Erro ao agrupar por marca' });
+  }
+}
+
+// 2. Dispositivos por versão do OS (osVersion)
+export async function devicesByOSVersion(req, res) {
+  try {
+    const result = await prisma.device.groupBy({
+      by: ['osVersion'],
+      _count: { osVersion: true }
+    });
+    res.status(200).json(result);
+  } catch (error) {
+    console.error('Erro ao agrupar por OS Version:', error);
+    res.status(500).json({ error: 'Erro ao agrupar por OS Version' });
+  }
+}
+
+// 3. Dispositivos ativos (isOnline)
+export async function devicesOnlineOffline(req, res) {
+  try {
+    const online = await prisma.device.count({ where: { isOnline: true } });
+    const offline = await prisma.device.count({ where: { isOnline: false } });
+    res.status(200).json({ online, offline });
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao contar dispositivos online/offline' });
+  }
+}
+
+
+// 4. Tempo de Tela Médio (screenTimeMinutes)
+export async function averageScreenTime(req, res) {
+  try {
+    const result = await prisma.device.aggregate({
+      _avg: { screenTimeMinutes: true }
+    });
+    res.status(200).json({ averageScreenTime: result._avg.screenTimeMinutes });
+  } catch (error) {
+    console.error('Erro ao calcular tempo médio de tela:', error);
+    res.status(500).json({ error: 'Erro ao calcular tempo médio de tela' });
+  }
+}
