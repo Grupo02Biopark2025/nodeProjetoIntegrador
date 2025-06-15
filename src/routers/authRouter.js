@@ -6,6 +6,7 @@ import {
 } from '../controllers/authController.js';
 
 const router = Router();
+
 router.post('/login', login);
 router.post('/request-reset', requestPasswordReset);
 router.post('/verify-code', verifyResetCode);

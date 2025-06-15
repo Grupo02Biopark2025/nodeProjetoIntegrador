@@ -1,589 +1,211 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+import { successResponse, errorResponse } from '../utils/responseHelper.js';
+
 const prisma = new PrismaClient();
-import bcrypt from "bcryptjs";
 
-/**
- * @swagger
- * /api/users:
- *   post:
- *     summary: Cria um novo usuário
- *     tags: [Users]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - email
- *               - password
- *             properties:
- *               name:
- *                 type: string
- *                 example: Gustavo Domingos
- *               email:
- *                 type: string
- *                 example: gusta@mdm.com
- *               password:
- *                 type: string
- *                 example: 123456
- *               isAdmin:
- *                 type: boolean
- *                 example: false
- *               profileImage:
- *                 type: string
- *                 example: base64_string_here
- *     responses:
- *       201:
- *         description: Usuário criado com sucesso
- *       400:
- *         description: Email já cadastrado
- *       500:
- *         description: Erro ao criar usuário
- */
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  isAdmin: true,
+  profileImage: true,
+  ultimoLogin: true,
+  ultimaAtualizacao: true,
+  qtdLogins: true,
+  qtdClicks: true,
+  createdAt: true,
+};
 
-// Criar um novo usuário
-export async function createUser(req, res) {
+const calculateDiasNoSistema = (createdAt) => 
+  createdAt ? Math.floor((new Date() - new Date(createdAt)) / (1000 * 60 * 60 * 24)) : 0;
+
+export const createUser = async (req, res) => {
   try {
     const { name, email, password, isAdmin, profileImage } = req.body;
 
-    // Validação dos campos obrigatórios
     if (!name || !email || !password) {
-      return res.status(400).json({ 
-        error: "Campos obrigatórios: name, email e password" 
-      });
+      return errorResponse(res, 'Campos obrigatórios: name, email e password', 400);
     }
 
-    // Validação básica de email
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        error: "Email inválido" 
-      });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return errorResponse(res, 'Email inválido', 400);
     }
 
-    // Validação de senha (mínimo 6 caracteres)
     if (password.length < 6) {
-      return res.status(400).json({ 
-        error: "Senha deve ter pelo menos 6 caracteres" 
-      });
+      return errorResponse(res, 'Senha deve ter pelo menos 6 caracteres', 400);
     }
 
-    // Verifica se o email já está cadastrado
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) {
-      return res.status(400).json({ error: "Email já cadastrado." });
+      return errorResponse(res, 'Email já cadastrado', 400);
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const userData = {
-      name,
-      email,
-      password: hashedPassword,
-      isAdmin: isAdmin !== undefined ? isAdmin : false,
-      // Inicializar estatísticas
-      qtdLogins: 0,
-      qtdClicks: 0,
-    };
-
-    if (profileImage !== undefined) {
-      userData.profileImage = profileImage;
-    }
-
-    console.log('Criando usuário:', {
-      name,
-      email,
-      isAdmin: userData.isAdmin,
-      hasProfileImage: !!profileImage
-    });
 
     const user = await prisma.user.create({
-      data: userData,
+      data: {
+        name,
+        email,
+        password: await bcrypt.hash(password, 10),
+        isAdmin: isAdmin ?? false,
+        profileImage,
+        qtdLogins: 0,
+        qtdClicks: 0,
+      },
+      select: userSelect
     });
 
-    const { password: _, ...userWithoutPassword } = user;
-
-    return res.status(201).json({ 
-      message: "Usuário criado com sucesso!", 
-      user: userWithoutPassword 
-    });
+    return successResponse(res, { user }, 'Usuário criado com sucesso', 201);
   } catch (error) {
-    console.error("Erro ao criar usuário:", error);
-    
-    if (error.code === 'P2002') {
-      return res.status(400).json({ 
-        error: "Email já está em uso" 
-      });
-    }
-
-    return res.status(500).json({ 
-      error: "Erro interno do servidor",
-      details: error.message 
-    });
+    return errorResponse(res, 'Erro ao criar usuário', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users:
- *   get:
- *     summary: Retorna todos os usuários com estatísticas
- *     tags: [Users]
- *     responses:
- *       200:
- *         description: Lista de usuários retornada com sucesso
- *       500:
- *         description: Erro ao obter usuários
- */
-
-// Obter todos os usuários com estatísticas calculadas
-export async function getUsers(req, res) {
+export const getUsers = async (req, res) => {
   try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isAdmin: true,
-        profileImage: true,
-        ultimoLogin: true,
-        ultimaAtualizacao: true,
-        qtdLogins: true,
-        qtdClicks: true,
-        createdAt: true,
-      }
-    });
+    const users = await prisma.user.findMany({ select: userSelect });
+    const usersWithStats = users.map(user => ({
+      ...user,
+      diasNoSistema: calculateDiasNoSistema(user.createdAt)
+    }));
 
-    // Calcular dias no sistema para cada usuário
-    const usersWithStats = users.map(user => {
-      const diasNoSistema = user.createdAt 
-        ? Math.floor((new Date() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24))
-        : 0;
-
-      return {
-        ...user,
-        diasNoSistema
-      };
-    });
-
-    return res.status(200).json(usersWithStats);
+    return successResponse(res, { users: usersWithStats });
   } catch (error) {
-    console.error('Erro ao obter usuários:', error);
-    return res.status(500).json({ error: 'Erro ao obter usuários' });
+    return errorResponse(res, 'Erro ao listar usuários', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/{id}:
- *   get:
- *     summary: Retorna um usuário pelo ID com estatísticas
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID do usuário
- *     responses:
- *       200:
- *         description: Usuário encontrado
- *       404:
- *         description: Usuário não encontrado
- *       500:
- *         description: Erro ao obter usuário
- */
-
-// Obter um único usuário pelo ID com estatísticas
-export async function getUserById(req, res) {
-  const { id } = req.params;
+export const getUserById = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(id) },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isAdmin: true,
-        profileImage: true,
-        ultimoLogin: true,
-        ultimaAtualizacao: true,
-        qtdLogins: true,
-        qtdClicks: true,
-        createdAt: true,
-      }
+      where: { id: parseInt(req.params.id) },
+      select: userSelect
     });
 
-    if (!user) {
-      return res.status(404).json({ error: 'Usuário não encontrado' });
-    }
-
-    // Calcular dias no sistema
-    const diasNoSistema = user.createdAt 
-      ? Math.floor((new Date() - new Date(user.createdAt)) / (1000 * 60 * 60 * 24))
-      : 0;
+    if (!user) return errorResponse(res, 'Usuário não encontrado', 404);
 
     const userWithStats = {
       ...user,
-      diasNoSistema
+      diasNoSistema: calculateDiasNoSistema(user.createdAt)
     };
 
-    return res.status(200).json(userWithStats);
+    return successResponse(res, { user: userWithStats });
   } catch (error) {
-    console.error('Erro ao obter usuário:', error);
-    return res.status(500).json({ error: 'Erro ao obter usuário' });
+    return errorResponse(res, 'Erro ao buscar usuário', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/{id}:
- *   put:
- *     summary: Atualiza um usuário existente
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID do usuário
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *                 example: Gustavo Atualizado
- *               email:
- *                 type: string
- *                 example: novo@email.com
- *               password:
- *                 type: string
- *                 example: novaSenha123
- *               isAdmin:
- *                 type: boolean
- *                 example: true
- *               profileImage:
- *                 type: string
- *                 example: base64_string_here
- *     responses:
- *       200:
- *         description: Usuário atualizado
- *       500:
- *         description: Erro ao atualizar usuário
- */
-
-// Atualizar um usuário
-export async function updateUser(req, res) {
-  const { id } = req.params;
-  const { name, email, password, isAdmin, profileImage } = req.body;
-
+export const updateUser = async (req, res) => {
   try {
-    let updateData = { 
-      name, 
+    const { id } = req.params;
+    const { name, email, password, isAdmin, profileImage } = req.body;
+
+    const updateData = {
+      name,
       email,
-      isAdmin: isAdmin !== undefined ? isAdmin : false,
-      ultimaAtualizacao: new Date(), // Atualizar timestamp de última atualização
+      isAdmin: isAdmin ?? undefined,
+      profileImage,
+      ultimaAtualizacao: new Date(),
+      ...(password && { password: await bcrypt.hash(password, 10) })
     };
 
-    if (password && password.trim() !== '') {
-      updateData.password = await bcrypt.hash(password, 10);
-    }
-
-    if (profileImage !== undefined) {
-      updateData.profileImage = profileImage;
-    }
-
-    console.log('Atualizando usuário:', {
-      id: parseInt(id),
-      updateData: {
-        ...updateData,
-        profileImage: updateData.profileImage ? 'Base64 string presente' : 'Nenhuma imagem'
-      }
-    });
-
-    const updatedUser = await prisma.user.update({
+    const user = await prisma.user.update({
       where: { id: parseInt(id) },
       data: updateData,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        isAdmin: true,
-        profileImage: true,
-        ultimoLogin: true,
-        ultimaAtualizacao: true,
-        qtdLogins: true,
-        qtdClicks: true,
-        createdAt: true,
-      }
+      select: userSelect
     });
-
-    // Calcular dias no sistema
-    const diasNoSistema = updatedUser.createdAt 
-      ? Math.floor((new Date() - new Date(updatedUser.createdAt)) / (1000 * 60 * 60 * 24))
-      : 0;
 
     const userWithStats = {
-      ...updatedUser,
-      diasNoSistema
+      ...user,
+      diasNoSistema: calculateDiasNoSistema(user.createdAt)
     };
 
-    return res.status(200).json(userWithStats);
+    return successResponse(res, { user: userWithStats }, 'Usuário atualizado com sucesso');
   } catch (error) {
-    console.error('❌ Erro ao atualizar usuário:', error);
-    
-    if (error.code === 'P2002') {
-      return res.status(400).json({ 
-        error: "Email já está em uso por outro usuário" 
-      });
-    }
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ 
-        error: "Usuário não encontrado" 
-      });
-    }
-
-    return res.status(500).json({ 
-      error: "Erro ao atualizar usuário",
-      details: error.message 
-    });
+    if (error.code === 'P2002') return errorResponse(res, 'Email já está em uso', 400);
+    if (error.code === 'P2025') return errorResponse(res, 'Usuário não encontrado', 404);
+    return errorResponse(res, 'Erro ao atualizar usuário', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/{id}:
- *   delete:
- *     summary: Deleta um usuário pelo ID
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID do usuário
- *     responses:
- *       200:
- *         description: Usuário deletado com sucesso
- *       500:
- *         description: Erro ao deletar usuário
- */
-
-// Deletar um usuário
-export async function deleteUser(req, res) {
-  const { id } = req.params;
+export const deleteUser = async (req, res) => {
   try {
     await prisma.user.delete({
-      where: { id: parseInt(id) },
+      where: { id: parseInt(req.params.id) }
     });
-    return res.status(200).json({ message: 'Usuário deletado com sucesso' });
+    return successResponse(res, null, 'Usuário deletado com sucesso');
   } catch (error) {
-    console.error('Erro ao deletar usuário:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ 
-        error: "Usuário não encontrado" 
-      });
-    }
-    
-    return res.status(500).json({ error: 'Erro ao deletar usuário' });
+    if (error.code === 'P2025') return errorResponse(res, 'Usuário não encontrado', 404);
+    return errorResponse(res, 'Erro ao deletar usuário', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/{id}/login:
- *   post:
- *     summary: Registra um login do usuário (atualiza estatísticas)
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID do usuário
- *     responses:
- *       200:
- *         description: Login registrado com sucesso
- *       404:
- *         description: Usuário não encontrado
- *       500:
- *         description: Erro ao registrar login
- */
-
-// Registrar login do usuário (atualizar estatísticas)
-export async function registerLogin(req, res) {
-  const { id } = req.params;
-  
+export const registerLogin = async (req, res) => {
   try {
-    const updatedUser = await prisma.user.update({
-      where: { id: parseInt(id) },
+    const user = await prisma.user.update({
+      where: { id: parseInt(req.params.id) },
       data: {
         ultimoLogin: new Date(),
-        qtdLogins: {
-          increment: 1
-        }
+        qtdLogins: { increment: 1 }
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        ultimoLogin: true,
-        qtdLogins: true,
-      }
+      select: userSelect
     });
 
-    console.log(`Login registrado para usuário ${updatedUser.name} (ID: ${id})`);
-    
-    return res.status(200).json({
-      message: 'Login registrado com sucesso',
-      user: updatedUser
-    });
+    return successResponse(res, { user }, 'Login registrado com sucesso');
   } catch (error) {
-    console.error('Erro ao registrar login:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ 
-        error: "Usuário não encontrado" 
-      });
-    }
-    
-    return res.status(500).json({ 
-      error: 'Erro ao registrar login',
-      details: error.message 
-    });
+    if (error.code === 'P2025') return errorResponse(res, 'Usuário não encontrado', 404);
+    return errorResponse(res, 'Erro ao registrar login', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/{id}/click:
- *   post:
- *     summary: Registra um click do usuário (atualiza estatísticas)
- *     tags: [Users]
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: integer
- *         description: ID do usuário
- *     responses:
- *       200:
- *         description: Click registrado com sucesso
- *       404:
- *         description: Usuário não encontrado
- *       500:
- *         description: Erro ao registrar click
- */
-
-// Registrar click do usuário (atualizar estatísticas)
-export async function registerClick(req, res) {
-  const { id } = req.params;
-  
+export const registerClick = async (req, res) => {
   try {
-    const updatedUser = await prisma.user.update({
-      where: { id: parseInt(id) },
-      data: {
-        qtdClicks: {
-          increment: 1
-        }
-      },
-      select: {
-        id: true,
-        name: true,
-        qtdClicks: true,
-      }
+    const user = await prisma.user.update({
+      where: { id: parseInt(req.params.id) },
+      data: { qtdClicks: { increment: 1 } },
+      select: userSelect
     });
 
-    return res.status(200).json({
-      message: 'Click registrado com sucesso',
-      user: updatedUser
-    });
+    return successResponse(res, { user }, 'Click registrado com sucesso');
   } catch (error) {
-    console.error('Erro ao registrar click:', error);
-    
-    if (error.code === 'P2025') {
-      return res.status(404).json({ 
-        error: "Usuário não encontrado" 
-      });
-    }
-    
-    return res.status(500).json({ 
-      error: 'Erro ao registrar click',
-      details: error.message 
-    });
+    if (error.code === 'P2025') return errorResponse(res, 'Usuário não encontrado', 404);
+    return errorResponse(res, 'Erro ao registrar click', 500);
   }
-}
+};
 
-/**
- * @swagger
- * /api/users/stats/summary:
- *   get:
- *     summary: Retorna estatísticas gerais dos usuários
- *     tags: [Users]
- *     responses:
- *       200:
- *         description: Estatísticas retornadas com sucesso
- *       500:
- *         description: Erro ao obter estatísticas
- */
-
-// Obter estatísticas gerais dos usuários
-export async function getUserStats(req, res) {
+export const getUserStats = async (req, res) => {
   try {
-    const totalUsers = await prisma.user.count();
-    const adminUsers = await prisma.user.count({
-      where: { isAdmin: true }
-    });
-    
-    const recentLogins = await prisma.user.count({
-      where: {
-        ultimoLogin: {
-          gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) // Últimos 7 dias
+    const [
+      totalUsers,
+      adminUsers,
+      recentLogins,
+      { _sum: { qtdLogins = 0 } = {} },
+      { _sum: { qtdClicks = 0 } = {} }
+    ] = await Promise.all([
+      prisma.user.count(),
+      prisma.user.count({ where: { isAdmin: true } }),
+      prisma.user.count({
+        where: {
+          ultimoLogin: {
+            gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+          }
         }
-      }
-    });
-
-    const totalLogins = await prisma.user.aggregate({
-      _sum: {
-        qtdLogins: true
-      }
-    });
-
-    const totalClicks = await prisma.user.aggregate({
-      _sum: {
-        qtdClicks: true
-      }
-    });
+      }),
+      prisma.user.aggregate({ _sum: { qtdLogins: true } }),
+      prisma.user.aggregate({ _sum: { qtdClicks: true } })
+    ]);
 
     const stats = {
       totalUsers,
       adminUsers,
       regularUsers: totalUsers - adminUsers,
       recentLogins,
-      totalLogins: totalLogins._sum.qtdLogins || 0,
-      totalClicks: totalClicks._sum.qtdClicks || 0,
+      totalLogins: qtdLogins,
+      totalClicks: qtdClicks,
       generatedAt: new Date()
     };
 
-    return res.status(200).json(stats);
+    return successResponse(res, { stats });
   } catch (error) {
-    console.error('Erro ao obter estatísticas:', error);
-    return res.status(500).json({ 
-      error: 'Erro ao obter estatísticas',
-      details: error.message 
-    });
+    return errorResponse(res, 'Erro ao obter estatísticas', 500);
   }
-}
+};

@@ -11,8 +11,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+setupSwagger(app);
+
 app.use(routes);
 
-
 export default app;
-setupSwagger(app);

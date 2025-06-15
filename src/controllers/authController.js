@@ -1,176 +1,108 @@
-import { PrismaClient } from "@prisma/client";
-import { sendPasswordResetEmail } from "../services/emailService.js";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
-import jwt from "jsonwebtoken";
+import { PrismaClient } from '@prisma/client';
+import { sendPasswordResetEmail } from '../services/emailService.js';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { successResponse, errorResponse } from '../utils/responseHelper.js';
 
 const prisma = new PrismaClient();
 const SECRET_KEY = process.env.SECRET_KEY;
 
-/**
- * @swagger
- * tags:
- *   name: Auth
- *   description: Rotas de autenticação
-
- * /api/auth/login:
- *   post:
- *     summary: Autenticar usuário e retornar token
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 example: gusta@mdm.com
- *               password:
- *                 type: string
- *                 example: 123456
- *     responses:
- *       200:
- *         description: Login bem-sucedido
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: Login bem-sucedido!
- *                 token:
- *                   type: string
- *                   example: JWT_TOKEN_AQUI
- *                 user:
- *                   type: object
- *                   properties:
- *                     id:
- *                       type: integer
- *                     name:
- *                       type: string
- *                     email:
- *                       type: string
- *       401:
- *         description: Email ou senha inválidos
- *       404:
- *         description: Usuário não encontrado
- *       500:
- *         description: Erro no servidor
- */
-
-
-export async function login(req, res) {
+export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { email },
-    });
-
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado" });
+      return errorResponse(res, 'Usuário não encontrado', 404);
     }
 
     const isValidPassword = await bcrypt.compare(password, user.password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: "Email ou senha inválidos" });
+      return errorResponse(res, 'Email ou senha inválidos', 401);
     }
 
-    const token = jwt.sign({ id: user.id }, SECRET_KEY, {
-      expiresIn: "1h",
-    });
+    const token = jwt.sign({ id: user.id }, SECRET_KEY, { expiresIn: '1h' });
 
-    // Usar increment é mais seguro
     await prisma.user.update({
       where: { id: user.id },
       data: {
-        qtdLogins: {
-          increment: 1
-        },
+        qtdLogins: { increment: 1 },
         ultimoLogin: new Date(),
       },
     });
 
-    return res.status(200).json({ message: "Login bem-sucedido!", token, user });
+    return successResponse(res, { token, user }, 'Login bem-sucedido!');
   } catch (error) {
-    console.log("Erro ao fazer login:", error);
-    return res.status(500).json({ error: "Erro ao fazer login" });
+    return errorResponse(res, 'Erro ao fazer login', 500);
   }
-}
+};
 
-export async function requestPasswordReset(req, res) {
-  const { email } = req.body;
-
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    return res.status(404).json({ error: "Usuário não encontrado." });
-  }
-
-  const resetCode = Math.floor(100000 + Math.random() * 900000).toString(); // gera código 6 dígitos
-  const expires = new Date(Date.now() + 10 * 60 * 1000); // expira em 10 minutos
-
-  await prisma.user.update({
-    where: { email },
-    data: {
-      resetCode,
-      resetCodeExpires: expires,
-    },
-  });
-
-  await sendPasswordResetEmail(email, resetCode);
-
-  return res.json({ message: "E-mail de redefinição enviado!" });
-}
-
-export async function resetPassword(req, res) {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email e nova senha são obrigatórios." });
-  }
-
+export const requestPasswordReset = async (req, res) => {
   try {
-    const user = await prisma.user.findUnique({
+    const { email } = req.body;
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      return errorResponse(res, 'Usuário não encontrado.', 404);
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 10 * 60 * 1000);
+
+    await prisma.user.update({
       where: { email },
+      data: { resetCode, resetCodeExpires: expires },
     });
 
+    await sendPasswordResetEmail(email, resetCode);
+
+    return successResponse(res, null, 'E-mail de redefinição enviado!');
+  } catch (error) {
+    return errorResponse(res, 'Erro ao solicitar redefinição de senha', 500);
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return errorResponse(res, 'Email e nova senha são obrigatórios.', 400);
+    }
+
+    const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      return res.status(404).json({ error: "Usuário não encontrado." });
+      return errorResponse(res, 'Usuário não encontrado.', 404);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     await prisma.user.update({
       where: { email },
       data: {
         password: hashedPassword,
-        resetCode: null,          // limpa o código
-        resetCodeExpires: null,   // limpa expiração também
+        resetCode: null,
+        resetCodeExpires: null,
       },
     });
 
-    return res.status(200).json({ message: "Senha redefinida com sucesso." });
-
+    return successResponse(res, null, 'Senha redefinida com sucesso.');
   } catch (error) {
-    console.error("Erro ao redefinir senha:", error);
-    return res.status(500).json({ error: "Erro interno ao redefinir senha." });
+    return errorResponse(res, 'Erro interno ao redefinir senha.', 500);
   }
-}
+};
 
-export async function verifyResetCode(req, res) {
-  const { email, code } = req.body;
+export const verifyResetCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
 
-  const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email } });
 
-  if (!user || user.resetCode !== code || user.resetCodeExpires < new Date()) {
-    return res.status(400).json({ error: "Código inválido ou expirado." });
+    if (!user || user.resetCode !== code || user.resetCodeExpires < new Date()) {
+      return errorResponse(res, 'Código inválido ou expirado.', 400);
+    }
+
+    return successResponse(res, null, 'Código válido!');
+  } catch (error) {
+    return errorResponse(res, 'Erro ao verificar código', 500);
   }
-
-  res.json({ message: "Código válido!" });
-}
+};
