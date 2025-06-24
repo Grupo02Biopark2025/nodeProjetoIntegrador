@@ -78,6 +78,7 @@ model Device {
   
   // Relação com logs
   logs            Log[]
+   notifications Notification[]
 }
 
 model Log {
@@ -113,4 +114,26 @@ model Log {
   // Relações
   deviceId         String
   device           Device    @relation(fields: [deviceId], references: [deviceId])
+}
+
+model Notification {
+  id          Int       @id @default(autoincrement())
+  deviceId    String
+  title       String
+  message     String
+  type        String    @default("alert") // alert, warning, info
+  priority    String    @default("normal") // low, normal, high, urgent
+  status      String    @default("pending") // pending, sent, delivered, failed
+  
+  // Timestamps
+  createdAt   DateTime  @default(now())
+  sentAt      DateTime?
+  deliveredAt DateTime?
+  
+  // Metadados
+  createdBy   String?   // ID do usuário que enviou
+  data        Json?     // Dados adicionais da notificação
+  
+  // Relação
+  device      Device    @relation(fields: [deviceId], references: [deviceId])
 }
